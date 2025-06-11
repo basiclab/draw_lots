@@ -1,60 +1,56 @@
 <template>
   <div class="app">
     <header>
-      <h1>Draw Lots!</h1>
+      <h1>Draw Lots</h1>
     </header>
     <main>
       <div class="controls">
         <div class="input-group">
-          <label for="maxNumber">Maximum Number:</label>
-          <input 
-            type="number" 
-            id="maxNumber" 
-            v-model.number="maxNumber" 
-            min="1" 
-            max="100"
+          <label for="max">Max Number:</label>
+          <input
+            type="number"
+            id="max"
+            v-model.number="maxNumber"
+            :disabled="isDrawing"
             @input="validateInput"
           >
         </div>
-        <button 
-          class="draw-button" 
-          @click="drawLot" 
-          :disabled="isDrawing"
+        <button
+          class="draw-button"
+          @click="drawLot"
+          :disabled="isDrawing || !isValid"
         >
-          {{ isDrawing ? 'Drawing...' : 'Draw a Lot' }}
+          {{ isDrawing ? 'Drawing...' : 'Draw' }}
         </button>
       </div>
-      
-      <div class="result-container" v-if="currentNumber !== null">
-        <div class="result-number" :class="{ 'animate': isDrawing }">
-          {{ currentNumber }}
-        </div>
+
+      <div class="result" v-if="currentNumber !== null">
+        <div class="number">{{ currentNumber }}</div>
       </div>
 
-      <div class="history-container">
+      <div class="history-section" v-if="drawnNumbers.length > 0">
         <div class="history-header">
           <h2>History</h2>
           <button 
             class="clear-button" 
             @click="clearHistory"
             :disabled="drawnNumbers.length === 0"
-            :class="{ 'disabled': drawnNumbers.length === 0 }"
           >
-            <span class="button-icon">🗑️</span>
-            <span class="button-text">Clear History</span>
+            Clear History
           </button>
         </div>
-        <div class="history-list">
+        <div class="history">
           <div 
-            v-for="(number, index) in drawnNumbers" 
-            :key="index"
-            class="history-item"
+            v-for="(num, index) in drawnNumbers" 
+            :key="num" 
+            class="history-number" 
+            :class="{ 'new-number': index === drawnNumbers.length - 1 }"
             :style="{
-              '--gradient-opacity': 1 - (index * 0.1),
+              '--gradient-opacity': 1 - (drawnNumbers.length - 1 - index) / drawnNumbers.length,
               '--gradient-delay': `${index * 0.1}s`
             }"
           >
-            {{ number }}
+            {{ num }}
           </div>
         </div>
       </div>
@@ -84,10 +80,12 @@ export default {
     const drawnNumbers = ref([])
     const isDrawing = ref(false)
     const availableNumbers = ref([])
+    const isValid = ref(true)
 
     const validateInput = () => {
       if (maxNumber.value < 1) maxNumber.value = 1
       if (maxNumber.value > 100) maxNumber.value = 100
+      isValid.value = true
     }
 
     const resetAvailableNumbers = () => {
@@ -107,28 +105,29 @@ export default {
       if (isDrawing.value || availableNumbers.value.length === 0) return
       
       isDrawing.value = true
-      currentNumber.value = null
-
-      // Quick draw animation
-      const duration = 1.5
-      const startTime = Date.now()
+      let startTime = null
+      const duration = 2000 // 2 seconds
       
-      const animate = () => {
-        const elapsed = Date.now() - startTime
-        const progress = Math.min(elapsed / (duration * 1000), 1)
+      const animate = (timestamp) => {
+        if (!startTime) startTime = timestamp
+        const progress = timestamp - startTime
         
-        if (progress < 1) {
-          currentNumber.value = Math.floor(Math.random() * maxNumber.value) + 1
+        if (progress < duration) {
+          const randomIndex = Math.floor(Math.random() * availableNumbers.value.length)
+          currentNumber.value = availableNumbers.value[randomIndex]
           requestAnimationFrame(animate)
         } else {
           const randomIndex = Math.floor(Math.random() * availableNumbers.value.length)
           currentNumber.value = availableNumbers.value[randomIndex]
-          drawnNumbers.value.unshift(currentNumber.value)
+          drawnNumbers.value.push(currentNumber.value)
+          if (drawnNumbers.value.length > 10) {
+            drawnNumbers.value.shift()
+          }
           availableNumbers.value.splice(randomIndex, 1)
           isDrawing.value = false
         }
       }
-
+      
       requestAnimationFrame(animate)
     }
 
@@ -147,7 +146,8 @@ export default {
       isDrawing,
       drawLot,
       validateInput,
-      clearHistory
+      clearHistory,
+      isValid
     }
   }
 }
@@ -246,11 +246,11 @@ header {
   }
 }
 
-.result-container {
+.result {
   text-align: center;
   margin: 2rem 0;
   
-  .result-number {
+  .number {
     font-size: 4rem;
     font-weight: bold;
     color: var(--secondary-color);
@@ -262,7 +262,7 @@ header {
   }
 }
 
-.history-container {
+.history-section {
   margin-top: 2rem;
   background: white;
   border-radius: 10px;
@@ -281,31 +281,63 @@ header {
       font-size: 1.5rem;
     }
   }
+}
 
-  .history-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    max-height: 200px;
-    overflow-y: auto;
-    padding: 0.5rem;
+.history {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 0.5rem;
+}
+
+.history-number {
+  display: inline-block;
+  padding: 0.5rem 1rem;
+  margin: 0.25rem;
+  border-radius: 0.5rem;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: white;
+  background: linear-gradient(135deg, #1a5276, #154360);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+  opacity: var(--gradient-opacity, 1);
+}
+
+.history-number.new-number {
+  animation: slideIn 0.5s ease-out;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  opacity: 1;
+}
+
+.history-number::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.2), transparent);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.history-number:hover::before {
+  opacity: 1;
+}
+
+@keyframes slideIn {
+  0% {
+    transform: translateX(100%);
+    opacity: 0;
   }
-
-  .history-item {
-    background: var(--primary-color);
-    color: white;
-    padding: 0.5rem 1rem;
-    border-radius: 5px;
-    font-weight: bold;
-    opacity: var(--gradient-opacity);
-    animation: fadeIn 0.3s ease-out forwards;
-    animation-delay: var(--gradient-delay);
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    transition: transform 0.2s ease;
-
-    &:hover {
-      transform: translateY(-2px);
-    }
+  100% {
+    transform: translateX(0);
+    opacity: 1;
   }
 }
 
@@ -349,92 +381,26 @@ header {
 }
 
 .clear-button {
-  background: linear-gradient(145deg, #e74c3c, #c0392b);
+  background: #e74c3c;
   color: white;
   border: none;
-  padding: 0.3rem 0.6rem;
-  border-radius: 6px;
-  font-size: 0.9rem;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
   cursor: pointer;
+  font-weight: 600;
   transition: all 0.3s ease;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  box-shadow: 0 4px 15px rgba(231, 76, 60, 0.2);
-  position: relative;
-  overflow: hidden;
-
-  &:hover:not(.disabled) {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(231, 76, 60, 0.3);
-    background: linear-gradient(145deg, #c0392b, #e74c3c);
-
-    .button-icon {
-      transform: rotate(15deg);
-    }
-  }
-
-  &:active:not(.disabled) {
-    transform: translateY(0);
-    box-shadow: 0 2px 10px rgba(231, 76, 60, 0.2);
-  }
-
-  &.disabled {
-    background: #ccc;
-    cursor: not-allowed;
-    box-shadow: none;
-    opacity: 0.7;
-  }
-
-  .button-icon {
-    font-size: 1.1rem;
-    transition: transform 0.3s ease;
-  }
-
-  .button-text {
-    font-weight: 600;
-    letter-spacing: 0.5px;
-  }
-
-  &::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(
-      45deg,
-      transparent 0%,
-      rgba(255, 255, 255, 0.1) 50%,
-      transparent 100%
-    );
-    transform: translateX(-100%);
-    transition: transform 0.6s ease;
-  }
-
-  &:hover:not(.disabled)::after {
-    transform: translateX(100%);
-  }
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
-@keyframes bounce {
-  0%, 100% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.1);
-  }
+.clear-button:hover:not(:disabled) {
+  background: #c0392b;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
 }
 
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: var(--gradient-opacity);
-    transform: translateY(0);
-  }
+.clear-button:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+  opacity: 0.7;
 }
 </style> 
