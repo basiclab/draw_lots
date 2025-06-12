@@ -24,8 +24,8 @@
         </button>
       </div>
 
-      <div class="result" v-if="currentNumber !== null">
-        <div class="number">{{ currentNumber }}</div>
+      <div class="result" v-if="displayNumber !== null">
+        <div class="number">{{ displayNumber }}</div>
       </div>
 
       <div class="history-section" v-if="drawnNumbers.length > 0">
@@ -41,16 +41,16 @@
         </div>
         <div class="history">
           <div 
-            v-for="(num, index) in drawnNumbers" 
-            :key="num" 
+            v-for="item in drawnNumbers" 
+            :key="item.id" 
             class="history-number" 
-            :class="{ 'new-number': index === drawnNumbers.length - 1 }"
+            :class="{ 'new-number': item.id === drawnNumbers[drawnNumbers.length - 1].id }"
             :style="{
-              '--gradient-opacity': 1 - (drawnNumbers.length - 1 - index) / drawnNumbers.length,
-              '--gradient-delay': `${index * 0.1}s`
+              '--gradient-opacity': 1 - (drawnNumbers.length - 1 - drawnNumbers.indexOf(item)) / drawnNumbers.length,
+              '--gradient-delay': `${drawnNumbers.indexOf(item) * 0.1}s`
             }"
           >
-            {{ num }}
+            {{ item.number }}
           </div>
         </div>
       </div>
@@ -59,10 +59,11 @@
         <h3>Tips</h3>
         <ul class="tips-list">
           <li>Set your maximum number (1-100) to define the range</li>
-          <li>Click "Draw" to randomly select a number</li>
-          <li>Each number can only be drawn once</li>
-          <li>Use "Clear History" to start fresh</li>
-          <li>Numbers are drawn without replacement</li>
+          <li>Click <span class="button-text draw">Draw</span> to randomly select a number</li>
+          <li>Numbers can be drawn multiple times</li>
+          <li>Use <span class="button-text clear">Clear History</span> to start fresh</li>
+          <li>Each draw is completely random and independent</li>
+          <li>History shows the last 10 drawn numbers</li>
         </ul>
       </div>
     </main>
@@ -77,10 +78,11 @@ export default {
   setup() {
     const maxNumber = ref(10)
     const currentNumber = ref(null)
+    const displayNumber = ref(null)
     const drawnNumbers = ref([])
     const isDrawing = ref(false)
-    const availableNumbers = ref([])
     const isValid = ref(true)
+    let historyId = 0
 
     const validateInput = () => {
       if (maxNumber.value < 1) maxNumber.value = 1
@@ -88,42 +90,37 @@ export default {
       isValid.value = true
     }
 
-    const resetAvailableNumbers = () => {
-      availableNumbers.value = Array.from(
-        { length: maxNumber.value }, 
-        (_, i) => i + 1
-      )
-    }
-
     const clearHistory = () => {
       drawnNumbers.value = []
-      resetAvailableNumbers()
       currentNumber.value = null
+      displayNumber.value = null
+      historyId = 0
     }
 
     const drawLot = () => {
-      if (isDrawing.value || availableNumbers.value.length === 0) return
+      if (isDrawing.value) return
       
       isDrawing.value = true
       let startTime = null
-      const duration = 2000 // 2 seconds
+      const duration = 1000 // 1 second
       
       const animate = (timestamp) => {
         if (!startTime) startTime = timestamp
         const progress = timestamp - startTime
         
         if (progress < duration) {
-          const randomIndex = Math.floor(Math.random() * availableNumbers.value.length)
-          currentNumber.value = availableNumbers.value[randomIndex]
+          // During animation, show random numbers from the same range
+          displayNumber.value = Math.floor(Math.random() * maxNumber.value) + 1
           requestAnimationFrame(animate)
         } else {
-          const randomIndex = Math.floor(Math.random() * availableNumbers.value.length)
-          currentNumber.value = availableNumbers.value[randomIndex]
-          drawnNumbers.value.push(currentNumber.value)
+          // At the end of animation, generate the actual random number
+          const finalNumber = Math.floor(Math.random() * maxNumber.value) + 1
+          currentNumber.value = finalNumber
+          displayNumber.value = finalNumber
+          drawnNumbers.value.push({ id: historyId++, number: finalNumber })
           if (drawnNumbers.value.length > 10) {
             drawnNumbers.value.shift()
           }
-          availableNumbers.value.splice(randomIndex, 1)
           isDrawing.value = false
         }
       }
@@ -132,16 +129,17 @@ export default {
     }
 
     onMounted(() => {
-      resetAvailableNumbers()
+      validateInput()
     })
 
     watch(maxNumber, () => {
-      resetAvailableNumbers()
+      validateInput()
     })
 
     return {
       maxNumber,
       currentNumber,
+      displayNumber,
       drawnNumbers,
       isDrawing,
       drawLot,
@@ -231,18 +229,21 @@ header {
   border: none;
   border-radius: 6px;
   font-size: 1.1rem;
-  font-weight: bold;
+  font-weight: 600;
   cursor: pointer;
-  transition: transform 0.2s ease, background-color 0.2s ease;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   
   &:hover:not(:disabled) {
     transform: translateY(-2px);
     background-color: darken(#4a90e2, 10%);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
   }
   
   &:disabled {
     background-color: #ccc;
     cursor: not-allowed;
+    opacity: 0.7;
   }
 }
 
@@ -390,17 +391,38 @@ header {
   font-weight: 600;
   transition: all 0.3s ease;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  
+  &:hover:not(:disabled) {
+    transform: translateY(-2px);
+    background: #c0392b;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+  }
+  
+  &:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+    opacity: 0.7;
+  }
 }
 
-.clear-button:hover:not(:disabled) {
-  background: #c0392b;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
-}
-
-.clear-button:disabled {
-  background: #ccc;
-  cursor: not-allowed;
-  opacity: 0.7;
+.button-text {
+  display: inline-block;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  font-weight: 600;
+  font-size: 0.9em;
+  margin: 0 0.2rem;
+  
+  &.draw {
+    background-color: var(--primary-color);
+    color: white;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+  
+  &.clear {
+    background-color: #e74c3c;
+    color: white;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
 }
 </style> 
